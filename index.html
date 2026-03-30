@@ -137,6 +137,19 @@ body{padding-bottom:calc(72px + env(safe-area-inset-bottom))}
 .delete-btn{font-size:11px;color:var(--tx3);cursor:pointer;border:none;background:none;padding:4px;font-family:var(--font)}
 .days-wrap{border:1px solid var(--bdr);border-radius:var(--radius-lg);overflow:hidden}
 .reset-btn{font-size:11px;color:var(--tx3);cursor:pointer;border:none;background:none;padding:4px;font-family:var(--font);margin-top:20px}
+.ex-name-input{width:100%;font-size:13px;padding:4px 6px;border:1px solid var(--bdr);border-radius:6px;background:var(--bg);color:var(--tx);font-family:var(--font)}
+.ex-name-input:focus{outline:none;border-color:var(--purple)}
+.ex-name{cursor:pointer;border-bottom:1px dashed var(--bdr2);padding-bottom:1px}
+.ex-name:hover{color:var(--purple)}
+.ex-actions{display:flex;gap:4px;margin-top:10px}
+.ex-actions button{font-size:11px;padding:5px 10px;border-radius:6px;cursor:pointer;font-family:var(--font);font-weight:500}
+.ex-add{border:1px dashed var(--bdr2);background:transparent;color:var(--tx2)}
+.ex-add:hover{border-color:var(--purple);color:var(--purple)}
+.ex-remove{border:none;background:transparent;color:var(--tx3);font-size:10px;padding:4px;cursor:pointer;vertical-align:middle}
+.ex-remove:hover{color:var(--red)}
+.ex-table td.ex-name-cell{position:relative}
+.ex-sets-input,.ex-reps-input{width:48px;font-size:13px;padding:4px 6px;text-align:center;border:1px solid var(--bdr);border-radius:6px;background:var(--bg);color:var(--tx);font-family:var(--mono)}
+.ex-sets-input:focus,.ex-reps-input:focus{outline:none;border-color:var(--purple)}
 </style>
 </head>
 <body>
@@ -212,7 +225,7 @@ return W;
 const PROG=buildProgram();
 let D,view="program",selPh=0,selWk=0,selDay=null;
 
-function load(){try{const r=localStorage.getItem(SK);D=r?JSON.parse(r):{done:{},wts:{},bw:[],tasks:{},ctasks:[],notes:{}};}catch(e){D={done:{},wts:{},bw:[],tasks:{},ctasks:[],notes:{}};}}
+function load(){try{const r=localStorage.getItem(SK);D=r?JSON.parse(r):{done:{},wts:{},bw:[],tasks:{},ctasks:[],notes:{},exNames:{},exSets:{},exReps:{},exExtra:{}};}catch(e){D={done:{},wts:{},bw:[],tasks:{},ctasks:[],notes:{},exNames:{},exSets:{},exReps:{},exExtra:{}};} if(!D.exNames)D.exNames={};if(!D.exSets)D.exSets={};if(!D.exReps)D.exReps={};if(!D.exExtra)D.exExtra={};}
 function save(){try{localStorage.setItem(SK,JSON.stringify(D));}catch(e){}}
 function today(){return new Date().toISOString().slice(0,10);}
 
@@ -288,14 +301,32 @@ h+=`<div class="detail" onclick="event.stopPropagation()">`;
 if(day.pace)h+=`<div class="detail-pace">Pace: ${day.pace}</div>`;
 if(day.note)h+=`<div class="detail-note">${day.note}</div>`;
 if(day.exercises){
-h+=`<table class="ex-table"><tr><th>Exercise</th><th>Sets</th><th>Reps</th><th>Weight</th></tr>`;
-day.exercises.forEach((ex,ei)=>{
-const wk="w-"+cw.wn+"-"+di+"-"+ei;
+const dayExKey="ex-"+cw.wn+"-"+di;
+const extras=D.exExtra[dayExKey]||[];
+const allEx=[...day.exercises.map((ex,ei)=>({n:ex.n,s:ex.s,r:ex.r,idx:ei,src:"base"})).filter(ex=>D.exNames["e-"+cw.wn+"-"+di+"-"+ex.idx]!=="__removed__"),...extras.map((ex,ei)=>({n:ex.n,s:ex.s,r:ex.r,idx:day.exercises.length+ei,src:"extra",extraIdx:ei}))];
+h+=`<table class="ex-table"><tr><th>Exercise</th><th>Sets</th><th>Reps</th><th>Weight</th><th></th></tr>`;
+allEx.forEach((ex,ai)=>{
+const ek="e-"+cw.wn+"-"+di+"-"+ex.idx;
+const wk="w-"+cw.wn+"-"+di+"-"+ex.idx;
+const nm=D.exNames[ek]||ex.n;
+const st=D.exSets[ek]||String(ex.s);
+const rp=D.exReps[ek]||ex.r;
 const val=D.wts[wk]||"";
-h+=`<tr><td>${ex.n}</td><td>${ex.s}</td><td>${ex.r}</td>
-<td><input type="text" placeholder="-" value="${val}" oninput="D.wts['${wk}']=this.value;save()" onclick="event.stopPropagation()"></td></tr>`;
+const isEditing=window._editingEx===ek;
+h+=`<tr><td class="ex-name-cell">`;
+if(isEditing){
+h+=`<input class="ex-name-input" type="text" value="${nm.replace(/"/g,'&quot;')}" onblur="finishEditEx('${ek}',this.value)" onkeydown="if(event.key==='Enter')this.blur()" onclick="event.stopPropagation()" autofocus>`;
+}else{
+h+=`<span class="ex-name" onclick="event.stopPropagation();startEditEx('${ek}')">${nm}</span>`;
+}
+h+=`</td>`;
+h+=`<td><input class="ex-sets-input" type="text" value="${st}" oninput="D.exSets['${ek}']=this.value;save()" onclick="event.stopPropagation()"></td>`;
+h+=`<td><input class="ex-reps-input" type="text" value="${rp}" oninput="D.exReps['${ek}']=this.value;save()" onclick="event.stopPropagation()"></td>`;
+h+=`<td><input type="text" placeholder="-" value="${val}" oninput="D.wts['${wk}']=this.value;save()" onclick="event.stopPropagation()"></td>`;
+h+=`<td><button class="ex-remove" onclick="event.stopPropagation();removeEx('${dayExKey}',${ex.idx},${day.exercises.length},'${ek}')" title="Remove">\u2715</button></td></tr>`;
 });
 h+=`</table>`;
+h+=`<div class="ex-actions"><button class="ex-add" onclick="event.stopPropagation();addEx('${dayExKey}')">+ Add exercise</button></div>`;
 }
 h+=`<div class="notes-label">Notes</div>`;
 const nv=D.notes[key]||"";
@@ -387,7 +418,7 @@ h+=`<div class="phase-row">
 <div class="mini-bar"><div class="mini-fill" style="width:${pp}%;background:${ph.dotColor}"></div></div></div>`;
 });
 
-h+=`<button class="reset-btn" onclick="if(confirm('Reset all data? Cannot be undone.')){D={done:{},wts:{},bw:[],tasks:{},ctasks:[],notes:{}};save();render()}">Reset all data</button>`;
+h+=`<button class="reset-btn" onclick="if(confirm('Reset all data? Cannot be undone.')){D={done:{},wts:{},bw:[],tasks:{},ctasks:[],notes:{},exNames:{},exSets:{},exReps:{},exExtra:{}};save();render()}">Reset all data</button>`;
 p.innerHTML+=h;
 }
 
@@ -446,6 +477,12 @@ if(!v||v<=0)return;
 D.bw.push({d:today(),w:v});
 save();render();
 }
+
+window._editingEx=null;
+function startEditEx(ek){window._editingEx=ek;render();setTimeout(()=>{const inp=document.querySelector('.ex-name-input');if(inp){inp.focus();inp.select();}},20);}
+function finishEditEx(ek,val){val=val.trim();if(val)D.exNames[ek]=val;window._editingEx=null;save();render();}
+function addEx(dayExKey){if(!D.exExtra[dayExKey])D.exExtra[dayExKey]=[];D.exExtra[dayExKey].push({n:"New exercise",s:3,r:"10"});save();render();}
+function removeEx(dayExKey,idx,baseLen,ek){if(idx<baseLen){if(!D.exNames[ek])D.exNames[ek]="";D.exNames[ek]="__removed__";save();render();}else{const ei=idx-baseLen;if(D.exExtra[dayExKey]){D.exExtra[dayExKey].splice(ei,1);save();render();}}}
 
 load();
 render();
