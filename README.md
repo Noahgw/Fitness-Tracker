@@ -1,4 +1,4 @@
-# Moab 25K Training Tracker
+# Fitness Tracker
 
 A mobile-first web app for tracking a 24-week training program targeting a 25 km trail run in Moab, Utah — while simultaneously training for strength/weight gain, skiing, and climbing.
 
